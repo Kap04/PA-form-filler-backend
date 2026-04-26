@@ -34,6 +34,8 @@ class Settings:
         self.jobs_dir = base_dir / os.getenv("JOBS_DIR", "runtime/jobs")
         self.tracker_path = base_dir / os.getenv("TRACKER_PATH", "runtime/tracker.json")
         self.max_pages_per_chunk = int(os.getenv("MAX_PAGES_PER_CHUNK", "8"))
+        cors_origins_raw = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
+        self.cors_origins = [origin.strip().rstrip("/") for origin in cors_origins_raw.split(",") if origin.strip()]
 
         self.upload_dir.mkdir(parents=True, exist_ok=True)
         self.output_dir.mkdir(parents=True, exist_ok=True)

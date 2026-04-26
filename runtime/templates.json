@@ -1,6 +1,398 @@
 [
   {
     "template_name": "form",
+    "field_count": 48,
+    "page_count": 1,
+    "fields": [
+      {
+        "name": "Request to expedite review",
+        "label": "Request to expedite review",
+        "field_type": "2",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "First Name",
+        "label": "First Name:",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "Last Name",
+        "label": "Last Name:",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "Phone Number",
+        "label": "Phone Number:",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "Address",
+        "label": "Address:",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "City",
+        "label": "City:",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "State",
+        "label": "State:",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "Zip Code",
+        "label": "Zip Code:",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "Date of Birth",
+        "label": "Date of Birth:",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "undefined",
+        "label": "",
+        "field_type": "5",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "undefined",
+        "label": "",
+        "field_type": "5",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "Member ID",
+        "label": "Member ID:",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "Patients Authorized Representative if applicable",
+        "label": "Patient\u2019s Authorized Representative (if applicable):",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "Authorized Representative Phone Number",
+        "label": "Authorized Representative Phone Number:",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "First Name_2",
+        "label": "First Name:",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "Last Name_2",
+        "label": "Last Name:",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "Specialty",
+        "label": "Specialty:",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "Address_2",
+        "label": "Address:",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "City_2",
+        "label": "City:",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "State_2",
+        "label": "State:",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "Zip Code_2",
+        "label": "Zip Code:",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "NPI Number individual",
+        "label": "NPI Number (individual):",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "Phone Number_2",
+        "label": "Phone Number:",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "Fax Number in HIPAA compliant area",
+        "label": "Fax Number (in HIPAA compliant area):",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "Pharmacy Name",
+        "label": "Pharmacy Name:",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "Pharmacy Fax Number in HIPAA compliant area",
+        "label": "Pharmacy Fax Number (in HIPAA compliant area):",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "Medication Name and Strength",
+        "label": "Medication Name and Strength:",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "Dispense as written",
+        "label": "Dispense as written",
+        "field_type": "2",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "Generic substitution permitted",
+        "label": "Generic substitution permitted",
+        "field_type": "2",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "Directions for Use",
+        "label": "Directions for Use:",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "Quantity",
+        "label": "Quantity:",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "Day Supply",
+        "label": "Day Supply:",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "New Therapy",
+        "label": "New Therapy",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "undefined_2",
+        "label": "undefined",
+        "field_type": "2",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "undefined_3",
+        "label": "undefined",
+        "field_type": "2",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "Continuation of Therapy Start Date",
+        "label": "Continuation of Therapy -Start Date",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "Duration of Therapy",
+        "label": "Duration of Therapy:",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "ICD 10 codess and diagnosis for use of medication",
+        "label": "ICD 10 codes(s) and diagnosis for use of medication:",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "Patient Height incm",
+        "label": "Patient Height (in/cm):",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "Pharmacy Benefit",
+        "label": "Pharmacy Benefit",
+        "field_type": "2",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "Medical Benefit",
+        "label": "Medical Benefit",
+        "field_type": "2",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "Patient Weight lbkg",
+        "label": "Patient Weight (lb/kg):",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "Pharmacy Benefit Medical Benefit",
+        "label": "Pharmacy Benefit Medical Benefit",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "If the patient has tried other medications for this condition please provide a list of previously tried and failed agents including dates and reasons for failure",
+        "label": "If the patient has tried other medication(s) for this condition, please provide a list of previously tried and failed agents, including dates and reason(s) for failure",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "undefined_4",
+        "label": "undefined",
+        "field_type": "2",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "undefined_5",
+        "label": "undefined",
+        "field_type": "2",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "Prescriber Signature",
+        "label": "Prescriber Signature",
+        "field_type": "6",
+        "required": false,
+        "max_length": null,
+        "options": []
+      },
+      {
+        "name": "Date",
+        "label": "Date",
+        "field_type": "7",
+        "required": false,
+        "max_length": null,
+        "options": []
+      }
+    ],
+    "signature": "c48d1d32b05f0b99"
+  },
+  {
+    "template_name": "form",
     "field_count": 0,
     "page_count": 1,
     "fields": [],
