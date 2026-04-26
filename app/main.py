@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import shutil
 import time
+from functools import lru_cache
 from pathlib import Path
 from uuid import uuid4
 
@@ -13,8 +14,6 @@ from fastapi.responses import JSONResponse
 
 from app.config import get_settings
 from app.models import ExtractResponse, FillRequest, ProcessResponse
-from app.services.pipeline import PAPipeline
-from app.services.tracker import TrackerStore
 
 settings = get_settings()
 logging.basicConfig(
@@ -32,9 +31,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 logger.info("cors.config origins=%s", settings.cors_origins)
+logger.info("runtime.paths base=%s jobs=%s output=%s", settings.runtime_base_dir, settings.jobs_dir, settings.output_dir)
 
-pipeline = PAPipeline()
-tracker = TrackerStore(settings.tracker_path)
+
+@lru_cache(maxsize=1)
+def _get_pipeline():
+    from app.services.pipeline import PAPipeline
+
+    return PAPipeline()
+
+
+@lru_cache(maxsize=1)
+def _get_tracker():
+    from app.services.tracker import TrackerStore
+
+    return TrackerStore(settings.tracker_path)
 
 
 @app.middleware("http")
@@ -167,12 +178,14 @@ def debug_mistral() -> dict[str, object]:
 
 
 @app.get("/tracker")
-def get_tracker() -> list[dict[str, object]]:
-    return tracker.list_entries()
+def get_tracker_entries() -> list[dict[str, object]]:
+    return _get_tracker().list_entries()
 
 
 @app.post("/extract", response_model=ExtractResponse)
 async def extract_files(emr_pdf: UploadFile = File(...), pa_form_pdf: UploadFile = File(...)) -> ExtractResponse:
+    pipeline = _get_pipeline()
+    tracker = _get_tracker()
     job_id = str(uuid4())
     logger.info(
         "extract.start job_id=%s emr_name=%s form_name=%s",
@@ -211,6 +224,7 @@ async def extract_files(emr_pdf: UploadFile = File(...), pa_form_pdf: UploadFile
 
 @app.post("/fill/{job_id}", response_model=ProcessResponse)
 async def fill_job(job_id: str, payload: FillRequest = Body(...)) -> ProcessResponse:
+    pipeline = _get_pipeline()
     logger.info("fill.start job_id=%s field_count=%s", job_id, len(payload.field_values))
     job_dir = _job_dir(job_id)
     form_path = job_dir / "form.pdf"
@@ -232,6 +246,7 @@ async def fill_job(job_id: str, payload: FillRequest = Body(...)) -> ProcessResp
 
 @app.post("/process", response_model=ProcessResponse)
 async def process_files(emr_pdf: UploadFile = File(...), pa_form_pdf: UploadFile = File(...)) -> ProcessResponse:
+    pipeline = _get_pipeline()
     job_id = str(uuid4())
     logger.info(
         "process.start job_id=%s emr_name=%s form_name=%s",

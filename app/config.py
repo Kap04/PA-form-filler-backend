@@ -26,17 +26,29 @@ class Settings:
         base_dir = Path(__file__).resolve().parents[1]
         self.base_dir = base_dir
         _load_dotenv(base_dir / ".env")
+        is_vercel = bool(os.getenv("VERCEL")) or bool(os.getenv("VERCEL_ENV"))
+        runtime_base = os.getenv("RUNTIME_BASE_DIR", "/tmp/pa-runtime" if is_vercel else str(base_dir))
+        self.runtime_base_dir = Path(runtime_base)
+
+        def resolve_runtime_path(value: str, default_relative: str) -> Path:
+            raw = (value or default_relative).strip()
+            candidate = Path(raw)
+            if candidate.is_absolute():
+                return candidate
+            return self.runtime_base_dir / candidate
+
         self.mistral_api_key = os.getenv("MISTRAL_API_KEY", "").strip()
         self.mistral_model = os.getenv("MISTRAL_MODEL", "mistral-small-latest")
         self.mistral_base_url = os.getenv("MISTRAL_BASE_URL", "https://api.mistral.ai/v1").rstrip("/")
-        self.upload_dir = base_dir / os.getenv("UPLOAD_DIR", "runtime/uploads")
-        self.output_dir = base_dir / os.getenv("OUTPUT_DIR", "runtime/output")
-        self.jobs_dir = base_dir / os.getenv("JOBS_DIR", "runtime/jobs")
-        self.tracker_path = base_dir / os.getenv("TRACKER_PATH", "runtime/tracker.json")
+        self.upload_dir = resolve_runtime_path(os.getenv("UPLOAD_DIR", "runtime/uploads"), "runtime/uploads")
+        self.output_dir = resolve_runtime_path(os.getenv("OUTPUT_DIR", "runtime/output"), "runtime/output")
+        self.jobs_dir = resolve_runtime_path(os.getenv("JOBS_DIR", "runtime/jobs"), "runtime/jobs")
+        self.tracker_path = resolve_runtime_path(os.getenv("TRACKER_PATH", "runtime/tracker.json"), "runtime/tracker.json")
         self.max_pages_per_chunk = int(os.getenv("MAX_PAGES_PER_CHUNK", "8"))
         cors_origins_raw = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
         self.cors_origins = [origin.strip().rstrip("/") for origin in cors_origins_raw.split(",") if origin.strip()]
 
+        self.runtime_base_dir.mkdir(parents=True, exist_ok=True)
         self.upload_dir.mkdir(parents=True, exist_ok=True)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.jobs_dir.mkdir(parents=True, exist_ok=True)
