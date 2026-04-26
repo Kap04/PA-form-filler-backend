@@ -44,6 +44,10 @@ class Settings:
         self.output_dir = resolve_runtime_path(os.getenv("OUTPUT_DIR", "runtime/output"), "runtime/output")
         self.jobs_dir = resolve_runtime_path(os.getenv("JOBS_DIR", "runtime/jobs"), "runtime/jobs")
         self.tracker_path = resolve_runtime_path(os.getenv("TRACKER_PATH", "runtime/tracker.json"), "runtime/tracker.json")
+        self.template_registry_path = resolve_runtime_path(
+            os.getenv("TEMPLATE_REGISTRY_PATH", "runtime/templates.json"),
+            "runtime/templates.json",
+        )
         self.max_pages_per_chunk = int(os.getenv("MAX_PAGES_PER_CHUNK", "8"))
         cors_origins_raw = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
         self.cors_origins = [origin.strip().rstrip("/") for origin in cors_origins_raw.split(",") if origin.strip()]
@@ -53,6 +57,7 @@ class Settings:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.jobs_dir.mkdir(parents=True, exist_ok=True)
         self.tracker_path.parent.mkdir(parents=True, exist_ok=True)
+        self.template_registry_path.parent.mkdir(parents=True, exist_ok=True)
 
 
 @lru_cache(maxsize=1)

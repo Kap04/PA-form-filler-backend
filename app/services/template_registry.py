@@ -12,7 +12,7 @@ from app.services.template_detection import TemplateDetector
 class TemplateRegistry:
     def __init__(self, registry_path: str | Path | None = None) -> None:
         self.settings = get_settings()
-        self.registry_path = Path(registry_path or self.settings.base_dir / "runtime" / "templates.json")
+        self.registry_path = Path(registry_path or self.settings.template_registry_path)
         self.registry_path.parent.mkdir(parents=True, exist_ok=True)
         if not self.registry_path.exists():
             self.registry_path.write_text("[]", encoding="utf-8")
