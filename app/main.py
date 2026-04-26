@@ -53,20 +53,7 @@ async def request_logging_middleware(request: Request, call_next):
     request_id = request.headers.get("X-Request-ID") or str(uuid4())
     start = time.perf_counter()
     logger.info("request.start id=%s method=%s path=%s", request_id, request.method, request.url.path)
-    try:
-        response = await call_next(request)
-    except Exception:
-        elapsed_ms = int((time.perf_counter() - start) * 1000)
-        logger.exception("request.error id=%s method=%s path=%s duration_ms=%s", request_id, request.method, request.url.path, elapsed_ms)
-        return JSONResponse(
-            status_code=500,
-            content={
-                "error": "internal_server_error",
-                "message": "Unexpected backend error while processing the request.",
-                "request_id": request_id,
-            },
-            headers={"X-Request-ID": request_id},
-        )
+    response = await call_next(request)
 
     elapsed_ms = int((time.perf_counter() - start) * 1000)
     response.headers["X-Request-ID"] = request_id
@@ -98,6 +85,26 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         content={
             "error": "http_error",
             "message": detail,
+            "request_id": request_id,
+        },
+        headers={"X-Request-ID": request_id},
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    request_id = request.headers.get("X-Request-ID") or str(uuid4())
+    logger.exception(
+        "unhandled.error id=%s method=%s path=%s",
+        request_id,
+        request.method,
+        request.url.path,
+    )
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "internal_server_error",
+            "message": "Unexpected backend error while processing the request.",
             "request_id": request_id,
         },
         headers={"X-Request-ID": request_id},
