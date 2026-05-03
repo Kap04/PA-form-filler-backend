@@ -43,7 +43,19 @@ class PdfOverlay:
                             "context": label_info.get("context", ""),
                         }
                 
-                print(f"DEBUG: extract_form_labels() found {len(labels)} labels via AI = {labels[:10]}...")
+                # Contextualize labels using page coordinates and nearby section headers.
+                labels = self._contextualize_duplicate_labels_simple(labels, document)
+                
+                # Remap metadata to use contextualized labels
+                old_metadata = self.label_metadata
+                self.label_metadata = {}
+                for contextual_label in labels:
+                    base_label = self._extract_base_label(contextual_label)
+                    normalized_base = self._normalize_label(base_label)
+                    if normalized_base in old_metadata:
+                        self.label_metadata[self._normalize_label(contextual_label)] = old_metadata[normalized_base]
+                
+                print(f"DEBUG: extract_form_labels() found {len(labels)} labels (after contextualization) = {labels[:10]}...")
                 return labels
             finally:
                 mistral.close()
@@ -76,6 +88,271 @@ class PdfOverlay:
         
         return kept
 
+    def _contextualize_duplicate_labels_simple(self, labels: list[str], document: fitz.Document) -> list[str]:
+        """Contextualize labels using page coordinates instead of raw occurrence counting.
+
+        The goal is to preserve the same base label while attaching a stable section hint
+        derived from layout: nearby section header, column side, or vertical region.
+        For duplicate base labels, different occurrences get different hints based on position.
+        """
+        if not labels:
+            return labels
+
+        # First pass: collect ALL occurrences of ALL unique base labels from the PDF
+        occurrences: dict[str, list[tuple[int, fitz.Rect, str]]] = {}
+        unique_base_labels = set()
+        for label in labels:
+            base_label = self._extract_base_label(label)
+            unique_base_labels.add(base_label)
+
+        for page_index in range(document.page_count):
+            page = document.load_page(page_index)
+            for base_label in unique_base_labels:
+                for rect in self._find_label_rects(page, base_label):
+                    section_hint = self._infer_section_hint(page, rect)
+                    occurrences.setdefault(self._normalize_label(base_label), []).append((page_index, rect, section_hint))
+
+        # Sort occurrences by y0 to ensure consistent top-to-bottom ordering
+        for normalized in occurrences:
+            occurrences[normalized].sort(key=lambda t: (t[0], t[1].y0, t[1].x0))
+
+        # Second pass: contextualize each input label based on its occurrence index
+        contextualized: list[str] = []
+        seen_counts: dict[str, int] = {}
+
+        for label in labels:
+            base_label = self._extract_base_label(label)
+            normalized = self._normalize_label(base_label)
+            seen_counts[normalized] = seen_counts.get(normalized, 0) + 1
+            occurrence_index = seen_counts[normalized] - 1
+
+            section_hint = ""
+            candidate_list = occurrences.get(normalized, [])
+            
+            # If we found multiple occurrences of this base label with different hints, use them
+            if occurrence_index < len(candidate_list):
+                section_hint = candidate_list[occurrence_index][2]
+            elif len(candidate_list) > 0:
+                # If we only found one occurrence but this is a duplicate label request,
+                # use position-based heuristic: first on left, second on right
+                fallback_hint = "Right Column" if seen_counts[normalized] > 1 else candidate_list[0][2]
+                section_hint = fallback_hint
+            
+            if not section_hint:
+                section_hint = f"Occurrence {seen_counts[normalized]}"
+
+            contextual_label = f"{base_label} [{section_hint}]"
+            contextualized.append(contextual_label)
+
+        return contextualized
+
+    def _find_label_rects(self, page: fitz.Page, label: str) -> list[fitz.Rect]:
+        """Return candidate rectangles for a label on a page using exact and variant searches."""
+        candidates: list[fitz.Rect] = []
+        for variant in self._label_variants(label):
+            search_results = page.search_for(variant)
+            if search_results:
+                candidates.extend(search_results)
+        # De-duplicate rectangles more aggressively to avoid near-duplicates
+        unique: list[fitz.Rect] = []
+        seen = set()
+        for rect in sorted(candidates, key=lambda r: (r.y0, r.x0)):
+            # Use tighter threshold for deduplication: if center points are within 5 pixels, consider them duplicates
+            key = (round(rect.x0 / 5) * 5, round(rect.y0 / 5) * 5)
+            if key not in seen:
+                seen.add(key)
+                unique.append(rect)
+        return sorted(unique, key=lambda rect: (rect.y0, rect.x0))
+
+    def _infer_section_hint(self, page: fitz.Page, label_rect: fitz.Rect) -> str:
+        """Infer a section hint from nearby headers or page geometry.
+        
+        Priority: Section headers > Layout-based hints
+        """
+        layout = self._detect_layout(page)
+        label_center_x = (label_rect.x0 + label_rect.x1) / 2
+        label_center_y = (label_rect.y0 + label_rect.y1) / 2
+
+        if layout == "two_column_vertical":
+            return "Left Column" if label_center_x < (page.rect.width / 2) else "Right Column"
+
+        # For horizontal or single-column layouts, try headers first so stacked sections
+        # can be labeled by section name instead of a generic band.
+        header = self._nearest_section_header(page, label_rect)
+        if header:
+            return header
+
+        if layout == "two_row_horizontal":
+            return "Top Section" if label_center_y < (page.rect.height / 2) else "Bottom Section"
+
+        # Single column fallback
+        return "Upper Section" if label_center_y < (page.rect.height / 2) else "Lower Section"
+
+    def _detect_layout(self, page: fitz.Page) -> str:
+        """Detect whether the page is predominantly two-column, two-row, or single-column."""
+        words = page.get_text("words") or []
+        if len(words) < 8:
+            return "single_column"
+
+        midpoint_x = page.rect.width / 2
+        midpoint_y = page.rect.height / 2
+        x_centers = [((word[0] + word[2]) / 2) for word in words if str(word[4]).strip()]
+        y_centers = [((word[1] + word[3]) / 2) for word in words if str(word[4]).strip()]
+
+        left = sum(1 for x in x_centers if x < midpoint_x)
+        right = sum(1 for x in x_centers if x >= midpoint_x)
+        upper = sum(1 for y in y_centers if y < midpoint_y)
+        lower = sum(1 for y in y_centers if y >= midpoint_y)
+
+        # A vertical two-column form usually has a noticeable gap around the page midpoint.
+        gap_x = sum(1 for x in x_centers if abs(x - midpoint_x) < 45)
+        left_density = left / max(len(x_centers), 1)
+        right_density = right / max(len(x_centers), 1)
+        gap_ratio = gap_x / max(len(x_centers), 1)
+
+        # Horizontal split fallback for stacked sections.
+        gap_y = sum(1 for y in y_centers if abs(y - midpoint_y) < 45)
+        upper_density = upper / max(len(y_centers), 1)
+        lower_density = lower / max(len(y_centers), 1)
+        gap_y_ratio = gap_y / max(len(y_centers), 1)
+
+        # Prefer horizontal sections only when top/bottom separation is very strong.
+        horizontal_strong = (
+            upper > 0
+            and lower > 0
+            and gap_y_ratio < 0.09
+            and (upper_density > 0.28 and lower_density > 0.28)
+        )
+        if horizontal_strong:
+            return "two_row_horizontal"
+
+        if left > 0 and right > 0 and gap_ratio < 0.25:
+            return "two_column_vertical"
+
+        if upper > 0 and lower > 0 and gap_y_ratio < 0.20 and (upper_density > 0.22 or lower_density > 0.22):
+            return "two_row_horizontal"
+        return "single_column"
+
+    def _nearest_section_header(self, page: fitz.Page, label_rect: fitz.Rect) -> str:
+        """Find the nearest recognized section header above a label.
+        
+        Uses flexible pattern matching to find headers like:
+        - "Patient Information", "Member Information", "Member Data"
+        - "Prescriber Information", "Provider Information", "Provider Data"
+        - "Pharmacy Information", "Dispensing Pharmacy"
+        
+        Returns header classification like "Patient Information" or "Prescriber Information" (not hardcoded section names).
+        """
+        label_center_x = (label_rect.x0 + label_rect.x1) / 2
+        page_mid_x = page.rect.width / 2
+        
+        # Keywords that indicate patient/member section
+        patient_keywords = {"patient", "member", "enrollee", "subscriber"}
+        # Keywords that indicate prescriber/provider section
+        provider_keywords = {"prescriber", "provider", "physician", "doctor", "office", "practice"}
+        # Keywords that indicate pharmacy section
+        pharmacy_keywords = {"pharmacy", "dispensing"}
+        
+        best_role = ""
+        best_score = None
+
+        # Evaluate header candidates line-by-line so multi-line blocks can still expose
+        # clean section headers like "Patient Information" and "Prescriber Information".
+        for block in page.get_text("blocks") or []:
+            if len(block) < 5:
+                continue
+
+            x0, y0, x1, y1, raw_text = block[0], block[1], block[2], block[3], str(block[4] or "")
+            lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
+            if not lines:
+                continue
+
+            block_height = max(1.0, float(y1 - y0))
+            line_height = block_height / max(len(lines), 1)
+
+            for index, text_stripped in enumerate(lines):
+                # Reject obvious field-label lines; section headers are usually concise.
+                if len(text_stripped) < 3 or len(text_stripped) > 80:
+                    continue
+                if ":" in text_stripped or "?" in text_stripped:
+                    continue
+
+                text_normalized = self._normalize_label(text_stripped).lower()
+                if not text_normalized:
+                    continue
+
+                # Approximate a line-level rectangle within the original block.
+                line_y0 = y0 + (index * line_height)
+                line_y1 = min(y1, line_y0 + line_height)
+
+                # Header should appear above the label.
+                if line_y1 > label_rect.y0 + 8:
+                    continue
+
+                role = ""
+                if any(kw in text_normalized for kw in patient_keywords):
+                    role = "Patient Information"
+                elif any(kw in text_normalized for kw in provider_keywords):
+                    role = "Prescriber Information"
+                elif any(kw in text_normalized for kw in pharmacy_keywords):
+                    role = "Pharmacy Information"
+                if not role:
+                    continue
+
+                # Header-like guardrails to avoid matching normal questions/labels.
+                has_information_word = "information" in text_normalized
+                compact_header = len(text_stripped.split()) <= 4
+                is_header_like = has_information_word or text_stripped.isupper() or compact_header
+                if not is_header_like:
+                    continue
+
+                vertical_distance = label_rect.y0 - line_y1
+                horizontal_distance = abs(((x0 + x1) / 2) - label_center_x)
+
+                # Allow larger distances for stacked top/bottom sections.
+                if vertical_distance > 260:
+                    continue
+
+                # Wide header bands (often in horizontal layouts) should not be penalized
+                # by side mismatch. Narrow headers still prefer same-side matches.
+                header_width_ratio = (x1 - x0) / max(1.0, float(page.rect.width))
+                same_side_penalty = 0
+                if header_width_ratio < 0.35:
+                    same_side_penalty = 0 if (((x0 + x1) / 2 < page_mid_x) == (label_center_x < page_mid_x)) else 20
+
+                score = (vertical_distance * 0.8) + (horizontal_distance * 0.2) + same_side_penalty
+                if best_score is None or score < best_score:
+                    best_score = score
+                    best_role = role
+
+        return best_role
+
+    def _extract_base_label(self, label: str) -> str:
+        """Extract the base label from a contextualized label.
+        
+        Strips both section hints like '[Upper Section]' and legacy occurrence markers
+        like '(occurrence 2)'.
+        """
+        cleaned = re.sub(r"\s*\[(.+)\]\s*$", "", label.strip())
+        match = re.match(r"^(.*?)\s*\(occurrence\s+\d+\)\s*$", cleaned)
+        if match:
+            return match.group(1).strip()
+        return cleaned.strip()
+
+    def _extract_occurrence_number(self, label: str) -> int:
+        """Extract the 1-based occurrence number from a contextualized label.
+
+        Returns 1 when the label has no explicit occurrence suffix.
+        """
+        cleaned = re.sub(r"\s*\[(.+)\]\s*$", "", label.strip())
+        match = re.match(r"^.*\(occurrence\s+(\d+)\)\s*$", cleaned, flags=re.IGNORECASE)
+        if match:
+            try:
+                return max(1, int(match.group(1)))
+            except ValueError:
+                return 1
+        return 1
+
     def fill_form_with_overlay(
         self, template_pdf_path: str | Path, field_values: dict[str, str], output_pdf_path: str | Path
     ) -> str:
@@ -88,7 +365,7 @@ class PdfOverlay:
                 if not label or not value:
                     continue
 
-                rect = label_positions.get(self._normalize_label(label))
+                rect = label_positions.get(label)  # Look up by full contextualized label
                 if not rect:
                     print(f"DEBUG: No position found for label '{label}'")
                     continue
@@ -96,10 +373,9 @@ class PdfOverlay:
                 page_index, rect_obj = rect
                 page = document.load_page(page_index)
 
-                # Get AI-determined label type
-                label_norm = self._normalize_label(label)
-                label_type = self.label_metadata.get(label_norm, {}).get("type", "text")
-                label_options = self.label_metadata.get(label_norm, {}).get("options", [])
+                # Get AI-determined label type (use contextualized label as key)
+                label_type = self.label_metadata.get(self._normalize_label(label), {}).get("type", "text")
+                label_options = self.label_metadata.get(self._normalize_label(label), {}).get("options", [])
 
                 # If AI says this is a choice field, try choice marking first
                 if label_type == "choice" and label_options:
@@ -136,41 +412,64 @@ class PdfOverlay:
     def _find_label_positions_for_labels(
         self, document: fitz.Document, labels_to_find: list[str]
     ) -> dict[str, tuple[int, fitz.Rect]]:
+        """Find positions for all labels, including contextualized duplicates like 'City [Left Column]' and 'City [Right Column]'.
+        
+        For duplicate base labels (same label appearing multiple times with different section hints),
+        searches for the Nth occurrence in sorted order (top-to-bottom, left-to-right).
+        """
         positions: dict[str, tuple[int, fitz.Rect]] = {}
+        
+        # Track how many times we've searched for each base label
+        base_label_search_count: dict[str, int] = {}
+        
         for page_index in range(document.page_count):
             page = document.load_page(page_index)
             page_text = page.get_text("text") or ""
+            
             for label in labels_to_find:
-                normalized_label = self._normalize_label(label)
-                if not normalized_label or normalized_label in positions:
-                    continue
+                if label in positions:
+                    continue  # Skip if THIS specific contextualized label already found
 
-                label_variants = self._label_variants(label)
+                base_label = self._extract_base_label(label)
+                
+                # Track which occurrence of this base label we're looking for
+                base_label_search_count[base_label] = base_label_search_count.get(base_label, 0) + 1
+                occurrence_number = base_label_search_count[base_label]
+                
+                label_variants = self._label_variants(base_label)
                 found_rect = None
+                search_results_for_label: list[fitz.Rect] = []
+                
                 for variant in label_variants:
                     search_results = page.search_for(variant)
                     if search_results:
-                        found_rect = self._choose_best_label_rect(page, label, search_results)
+                        search_results_for_label = search_results
                         break
+
+                if search_results_for_label:
+                    ranked_candidates = sorted(search_results_for_label, key=lambda rect: (rect.y0, rect.x0))
+                    candidate_index = min(occurrence_number - 1, len(ranked_candidates) - 1)
+                    found_rect = ranked_candidates[candidate_index]
 
                 if found_rect is None:
                     # Fallback: look for the label text in the extracted page text lines.
                     for line in page_text.splitlines():
                         line_normalized = self._normalize_label(line)
-                        label_norm = self._normalize_label(label)
+                        base_label_norm = self._normalize_label(base_label)
                         # Only use substring matching for longer text or exact matches to avoid collisions
-                        # e.g., "direction" should not match "directions for use"
-                        if line_normalized == label_norm or (
-                            len(label_norm) > 20 and label_norm in line_normalized
+                        if line_normalized == base_label_norm or (
+                            len(base_label_norm) > 20 and base_label_norm in line_normalized
                         ):
                             search_results = page.search_for(line.strip())
                             if search_results:
-                                found_rect = self._choose_best_label_rect(page, label, search_results)
+                                ranked_candidates = sorted(search_results, key=lambda rect: (rect.y0, rect.x0))
+                                candidate_index = min(occurrence_number - 1, len(ranked_candidates) - 1)
+                                found_rect = ranked_candidates[candidate_index]
                             break
 
                 if found_rect is not None:
-                    positions[normalized_label] = (page_index, found_rect)
-                    print(f"DEBUG: Found label '{label}' at {found_rect}")
+                    positions[label] = (page_index, found_rect)  # Key by contextualized label
+                    print(f"DEBUG: Found position for label '{label}' at {found_rect}")
 
         return positions
 

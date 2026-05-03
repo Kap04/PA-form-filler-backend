@@ -27,8 +27,11 @@ class Settings:
         self.base_dir = base_dir
         _load_dotenv(base_dir / ".env")
         is_vercel = bool(os.getenv("VERCEL")) or bool(os.getenv("VERCEL_ENV"))
-        runtime_base = os.getenv("RUNTIME_BASE_DIR", "/tmp/pa-runtime" if is_vercel else str(base_dir))
-        self.runtime_base_dir = Path(runtime_base)
+        runtime_base_env = os.getenv("RUNTIME_BASE_DIR", "").strip()
+        if runtime_base_env:
+            self.runtime_base_dir = Path(runtime_base_env)
+        else:
+            self.runtime_base_dir = Path("/tmp/pa-runtime" if is_vercel else base_dir)
 
         def resolve_runtime_path(value: str, default_relative: str) -> Path:
             raw = (value or default_relative).strip()
